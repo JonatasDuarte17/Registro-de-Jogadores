@@ -1,0 +1,23 @@
+{
+  "name": "Sistema de Registro de Jogadores",
+  "short_name": "Registro Jogadores",
+  "description": "Aplicativo para registro e verificação de elegibilidade de jogadores",
+  "start_url": "/Registro-de-Jogadores/",
+  "display": "standalone",
+  "background_color": "#5D5CDE",
+  "theme_color": "#5D5CDE",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
