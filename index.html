@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Registro de Jogadores</title>
     
+    <!-- PWA e iOS Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Registro Jogadores">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <meta name="theme-color" content="#5D5CDE">
+    
     <!-- Firebase SDK (versão de compatibilidade) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -910,7 +918,6 @@
                     });
             }
         }
-        
         // Initialize app
         function init() {
             initializeDB();
@@ -976,6 +983,19 @@
         
         // Initialize when the document is fully loaded
         document.addEventListener('DOMContentLoaded', init);
+    </script>
+
+    <!-- Registrar Service Worker para PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js').then(registration => {
+            console.log('Service Worker registrado com sucesso:', registration.scope);
+          }).catch(error => {
+            console.log('Falha ao registrar o Service Worker:', error);
+          });
+        });
+      }
     </script>
 </body>
 </html>
