@@ -21,6 +21,9 @@
     <!-- QR Code Scanner -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     
+    <!-- HTML5 QR Code Scanner -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -148,16 +151,22 @@
                 <p class="mb-4">Escaneie o QR Code ou digite o ID do jogador para verificar seu status.</p>
                 
                 <div class="flex flex-col items-center">
-                    <!-- Botões para escanear QR Code -->
-                    <div class="mb-4 flex flex-col space-y-2 w-full max-w-md">
-                        <button id="nativeScanButton" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
-                            Usar Scanner do Dispositivo
-                        </button>
+                    <!-- QR Code Scanner -->
+                    <div class="mb-4 w-full max-w-md">
+                        <!-- Área do Scanner -->
+                        <div id="qr-reader" class="mb-4 rounded overflow-hidden"></div>
                         
-                        <label for="qrImageInput" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded text-center cursor-pointer">
-                            Selecionar Imagem de QR Code
-                        </label>
-                        <input type="file" id="qrImageInput" accept="image/*" class="hidden">
+                        <!-- Botões para escaneamento -->
+                        <div class="flex flex-col space-y-2">
+                            <button id="startScannerButton" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
+                                Iniciar Scanner QR Online
+                            </button>
+                            
+                            <label for="qrImageInput" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded text-center cursor-pointer">
+                                Selecionar Imagem de QR Code
+                            </label>
+                            <input type="file" id="qrImageInput" accept="image/*" class="hidden">
+                        </div>
                     </div>
                     
                     <!-- Campo de entrada manual -->
@@ -286,7 +295,7 @@
         const notification = document.getElementById('notification');
         const notificationMessage = document.getElementById('notification-message');
         const closeNotification = document.getElementById('close-notification');
-        const nativeScanButton = document.getElementById('nativeScanButton');
+        const startScannerButton = document.getElementById('startScannerButton');
         const qrImageInput = document.getElementById('qrImageInput');
         
         // Login screen elements
@@ -309,6 +318,9 @@
         const syncIndicator = document.getElementById('sync-indicator');
         const syncStatus = document.getElementById('sync-status');
         const syncText = document.getElementById('sync-text');
+        
+        // QR scanner
+        let html5QrcodeScanner = null;
         // Initialize database from Firebase
         function initializeDB() {
             const dbRef = firebase.database().ref('players');
@@ -886,17 +898,44 @@
             tabRegister.addEventListener('click', () => switchTab('register'));
             tabSearch.addEventListener('click', () => switchTab('search'));
             
-            // QR Code scanning
-            nativeScanButton.addEventListener('click', () => {
-                // For iOS, show instruction
-                if (isIOS) {
-                    showNotification('Use a câmera padrão do iPhone para escanear o QR Code e digite o código aqui.');
-                } else {
-                    // Try to open a QR scanner app
-                    // Many Android devices will redirect to default scanner
-                    window.open('intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end', '_blank');
-                    showNotification('Abra seu aplicativo de scanner QR e digite o código aqui.');
+            // QR Code scanning with html5-qrcode
+            startScannerButton.addEventListener('click', () => {
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.clear();
+                    html5QrcodeScanner = null;
+                    document.getElementById('qr-reader').innerHTML = '';
+                    startScannerButton.textContent = 'Iniciar Scanner QR Online';
+                    return;
                 }
+                
+                startScannerButton.textContent = 'Parar Scanner';
+                
+                html5QrcodeScanner = new Html5QrcodeScanner(
+                    "qr-reader", 
+                    { 
+                        fps: 10, 
+                        qrbox: {width: 250, height: 250},
+                        rememberLastUsedCamera: true,
+                        showTorchButtonIfSupported: true
+                    },
+                    /* verbose= */ false
+                );
+                
+                html5QrcodeScanner.render((decodedText) => {
+                    // QR code detected
+                    playerIdInput.value = decodedText;
+                    checkPlayer();
+                    
+                    // Stop scanner after successful scan
+                    if (html5QrcodeScanner) {
+                        html5QrcodeScanner.clear();
+                        html5QrcodeScanner = null;
+                        document.getElementById('qr-reader').innerHTML = '';
+                        startScannerButton.textContent = 'Iniciar Scanner QR Online';
+                    }
+                    
+                    showNotification('QR Code detectado com sucesso!');
+                });
             });
             
             // Process selected image for QR code
