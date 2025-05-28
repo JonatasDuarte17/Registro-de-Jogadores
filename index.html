@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Registro de Jogadores</title>
+    
+    <!-- Firebase SDK (versão de compatibilidade) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    
+    <!-- QR Code Scanner -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -16,6 +26,23 @@
                 }
             }
         }
+    </script>
+    
+    <!-- Configuração do Firebase -->
+    <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDq-L2doBOPRULBPcoBz6fSHvnPxxLnH4E",
+      authDomain: "registro-de-jogadores.firebaseapp.com",
+      databaseURL: "https://registro-de-jogadores-default-rtdb.firebaseio.com",
+      projectId: "registro-de-jogadores",
+      storageBucket: "registro-de-jogadores.firebasestorage.app",
+      messagingSenderId: "86121414534",
+      appId: "1:86121414534:web:c1d838067e44ec905d3607",
+      measurementId: "G-3Z698CFG29"
+    };
+
+    // Inicializar Firebase
+    firebase.initializeApp(firebaseConfig);
     </script>
 </head>
 <body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
@@ -32,7 +59,37 @@
             }
         });
     </script>
-        <!-- Notification system -->
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="fixed inset-0 bg-white dark:bg-gray-900 z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-lg">
+            <h2 class="text-2xl font-bold text-center text-primary mb-6">Sistema de Registro de Jogadores</h2>
+            
+            <div id="login-error" class="mb-4 bg-red-100 text-red-800 p-3 rounded hidden">
+                Usuário ou senha incorretos. Tente novamente.
+            </div>
+            
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="username" class="block text-sm font-medium mb-1">Usuário</label>
+                    <input type="text" id="username" class="w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-base px-3 py-2" required>
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-sm font-medium mb-1">Senha</label>
+                    <input type="password" id="password" class="w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-base px-3 py-2" required>
+                </div>
+                
+                <div class="pt-2">
+                    <button type="submit" class="w-full bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
+                        Entrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification system -->
     <div id="notification" class="fixed top-4 right-4 max-w-xs bg-white dark:bg-gray-800 border-l-4 border-primary shadow-md rounded-md p-4 transform transition-transform duration-300 translate-x-full z-50">
         <div class="flex items-start">
             <div class="ml-3 w-0 flex-1">
@@ -48,8 +105,24 @@
             </div>
         </div>
     </div>
-
+    
+    <!-- Sync indicator -->
+    <div id="sync-indicator" class="fixed bottom-4 right-4 bg-white dark:bg-gray-800 shadow-md rounded-full p-2 flex items-center space-x-2 text-sm z-50 opacity-0 transition-opacity duration-300">
+        <div class="w-3 h-3 rounded-full bg-yellow-400" id="sync-status"></div>
+        <span id="sync-text">Sincronizando...</span>
+    </div>
     <div class="container mx-auto px-4 py-6 max-w-3xl">
+        <!-- User header -->
+        <div class="flex justify-between items-center mb-4">
+            <div class="user-info text-sm">
+                Logado como: <span id="current-user" class="font-semibold"></span>
+                <span id="admin-badge" class="ml-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-0.5 rounded-full text-xs hidden">Admin</span>
+            </div>
+            <button id="logout-button" class="text-sm text-gray-600 dark:text-gray-400 hover:text-primary">
+                Sair
+            </button>
+        </div>
+        
         <h1 class="text-3xl font-bold text-center text-primary mb-6">Sistema de Registro de Jogadores</h1>
         
         <!-- Tabs -->
@@ -60,14 +133,32 @@
                 <button id="tab-search" class="tab-btn px-4 py-2 border-b-2 border-transparent font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">Pesquisa</button>
             </div>
         </div>
-                <!-- Content containers -->
+        <!-- Content containers -->
         <div id="id-input-container" class="tab-content">
             <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-4">
-                <h2 class="text-xl font-semibold mb-2">Verificar Jogador por ID</h2>
-                <p class="mb-4">Digite o ID do jogador para verificar seu status.</p>
+                <h2 class="text-xl font-semibold mb-2">Verificar Jogador</h2>
+                <p class="mb-4">Escaneie o QR Code ou digite o ID do jogador para verificar seu status.</p>
                 
                 <div class="flex flex-col items-center">
+                    <!-- Container da câmera -->
+                    <div id="video-container" class="relative mb-4 w-full max-w-md hidden">
+                        <video id="video" class="rounded-lg w-full shadow-lg"></video>
+                        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 border-2 border-primary rounded w-2/3 h-2/3 pointer-events-none"></div>
+                    </div>
+                    
+                    <!-- Botões da câmera -->
+                    <div class="mb-4 flex space-x-2">
+                        <button id="startButton" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
+                            Escanear QR Code
+                        </button>
+                        <button id="stopButton" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded hidden">
+                            Parar Câmera
+                        </button>
+                    </div>
+                    
+                    <!-- Campo de entrada manual -->
                     <div class="w-full max-w-md mb-4">
+                        <p class="text-center text-sm mb-2">Ou digite o ID manualmente:</p>
                         <div class="flex space-x-2">
                             <input type="text" id="playerIdInput" class="w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-base px-3 py-2" placeholder="Digite o ID do jogador">
                             <button id="checkPlayerButton" class="bg-primary hover:bg-opacity-90 text-white px-3 py-2 rounded whitespace-nowrap">
@@ -96,7 +187,7 @@
                 </div>
             </div>
         </div>
-                <div id="register-container" class="tab-content hidden">
+        <div id="register-container" class="tab-content hidden">
             <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
                 <h2 class="text-xl font-semibold mb-4">Cadastro de Jogador</h2>
                 <form id="register-form" class="space-y-4">
@@ -135,8 +226,9 @@
                     </div>
                 </form>
             </div>
-                </div>
-                        <div id="search-container" class="tab-content hidden">
+        </div>
+        
+        <div id="search-container" class="tab-content hidden">
             <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
                 <h2 class="text-xl font-semibold mb-4">Pesquisar Jogador</h2>
                 <div class="mb-4">
@@ -158,9 +250,20 @@
             </div>
         </div>
     </div>
-        <script>
-        // In-memory database with local storage persistence
+    <script>
+        // In-memory database
         let playersDB = [];
+        
+        // User management
+        let currentUser = null;
+        let isAdmin = false;
+        
+        // Predefined users (will be stored in Firebase)
+        const users = [
+            { username: "admin", password: "admin123", isAdmin: true },
+            { username: "mesario1", password: "mesario123", isAdmin: false },
+            { username: "mesario2", password: "mesario123", isAdmin: false }
+        ];
         
         // DOM elements
         const playerInfoDisplay = document.getElementById('player-info-display');
@@ -176,6 +279,14 @@
         const notificationMessage = document.getElementById('notification-message');
         const closeNotification = document.getElementById('close-notification');
         
+        // Login screen elements
+        const loginScreen = document.getElementById('login-screen');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const currentUserSpan = document.getElementById('current-user');
+        const adminBadge = document.getElementById('admin-badge');
+        const logoutButton = document.getElementById('logout-button');
+        
         // Tab elements
         const tabIdInput = document.getElementById('tab-id-input');
         const tabRegister = document.getElementById('tab-register');
@@ -184,44 +295,334 @@
         const registerContainer = document.getElementById('register-container');
         const searchContainer = document.getElementById('search-container');
         
-        // Save data to localStorage
-        function saveData() {
-            try {
-                localStorage.setItem('playersDB', JSON.stringify(playersDB));
-                console.log('Dados salvos com sucesso');
-            } catch (e) {
-                console.error('Erro ao salvar dados:', e);
-            }
-        }
+        // Camera elements
+        const video = document.getElementById('video');
+        const videoContainer = document.getElementById('video-container');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
         
-        // Initialize database from localStorage if available
+        // Sync indicator elements
+        const syncIndicator = document.getElementById('sync-indicator');
+        const syncStatus = document.getElementById('sync-status');
+        const syncText = document.getElementById('sync-text');
+        
+        // Camera variables
+        let videoStream = null;
+        let isScanning = false;
+        let scanInterval = null;
+        let canvasElement = document.createElement('canvas');
+        let canvas = canvasElement.getContext('2d');
+        // Initialize database from Firebase
         function initializeDB() {
-            try {
-                // Try to load data from local storage
-                const savedData = localStorage.getItem('playersDB');
-                if (savedData) {
-                    playersDB = JSON.parse(savedData);
-                    console.log('Dados carregados do armazenamento local:', playersDB.length, 'jogadores');
-                } else {
-                    // Create initial data if no saved data exists
-                    console.log('Inicializando banco de dados de jogadores');
-                    playersDB = [
-                        { id: '123456', name: 'João Silva', age: 25, team: 'Leões FC', status: 'liberado' },
-                        { id: '789012', name: 'Maria Oliveira', age: 22, team: 'Tigres FC', status: 'bloqueado' }
-                    ];
-                    // Save initial data
-                    saveData();
+            const dbRef = firebase.database().ref('players');
+            
+            // Check if data exists first time
+            dbRef.once('value')
+                .then((snapshot) => {
+                    if (!snapshot.exists()) {
+                        console.log('Inicializando banco de dados de jogadores no Firebase');
+                        
+                        // Add sample data
+                        const initialData = [
+                            { id: '123456', name: 'João Silva', age: 25, team: 'Leões FC', status: 'liberado' },
+                            { id: '789012', name: 'Maria Oliveira', age: 22, team: 'Tigres FC', status: 'bloqueado' }
+                        ];
+                        
+                        // Save initial data to Firebase
+                        const updates = {};
+                        initialData.forEach(player => {
+                            updates[player.id] = player;
+                        });
+                        
+                        dbRef.update(updates)
+                            .then(() => console.log('Dados iniciais salvos no Firebase'))
+                            .catch(error => console.error('Erro ao salvar dados iniciais:', error));
+                    } else {
+                        console.log('Dados já existem no Firebase');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao verificar dados existentes:', error);
+                });
+            
+            // Listen for changes
+            dbRef.on('value', (snapshot) => {
+                playersDB = [];
+                if (snapshot.exists()) {
+                    snapshot.forEach(childSnapshot => {
+                        playersDB.push(childSnapshot.val());
+                    });
                 }
-            } catch (e) {
-                console.error('Erro ao carregar dados:', e);
-                // Fallback to initial data in case of error
-                playersDB = [
-                    { id: '123456', name: 'João Silva', age: 25, team: 'Leões FC', status: 'liberado' },
-                    { id: '789012', name: 'Maria Oliveira', age: 22, team: 'Tigres FC', status: 'bloqueado' }
-                ];
+                console.log('Dados atualizados do Firebase:', playersDB.length, 'jogadores');
+                
+                // Refresh UI if on search screen with active search
+                if (!searchContainer.classList.contains('hidden') && searchTerm.value.trim()) {
+                    searchPlayers();
+                }
+            });
+        }
+        
+        // Função para inicializar autenticação do Firebase
+        function initializeFirebaseAuth() {
+            // Verificar se usuários já existem no Firebase
+            firebase.database().ref('users').once('value')
+                .then((snapshot) => {
+                    if (!snapshot.exists()) {
+                        console.log('Inicializando usuários no Firebase');
+                        
+                        // Adicionar usuários predefinidos
+                        const updates = {};
+                        users.forEach(user => {
+                            updates[user.username] = {
+                                username: user.username,
+                                password: user.password, // Em produção, NUNCA armazene senhas em texto plano
+                                isAdmin: user.isAdmin
+                            };
+                        });
+                        
+                        firebase.database().ref('users').update(updates)
+                            .then(() => console.log('Usuários iniciais salvos no Firebase'))
+                            .catch(error => console.error('Erro ao salvar usuários iniciais:', error));
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao verificar usuários existentes:', error);
+                });
+        }
+        
+        // Monitor connection state
+        function monitorConnection() {
+            const connectedRef = firebase.database().ref('.info/connected');
+            connectedRef.on('value', (snap) => {
+                if (snap.val() === true) {
+                    syncStatus.classList.remove('bg-yellow-400', 'bg-red-500');
+                    syncStatus.classList.add('bg-green-500');
+                    syncText.textContent = 'Conectado';
+                    syncIndicator.classList.remove('opacity-0');
+                    setTimeout(() => {
+                        syncIndicator.classList.add('opacity-0');
+                    }, 3000);
+                } else {
+                    syncStatus.classList.remove('bg-green-500', 'bg-yellow-400');
+                    syncStatus.classList.add('bg-red-500');
+                    syncText.textContent = 'Desconectado';
+                    syncIndicator.classList.remove('opacity-0');
+                }
+            });
+            
+            // Show syncing status
+            const dbRef = firebase.database().ref('players');
+            dbRef.on('child_changed', () => {
+                syncStatus.classList.remove('bg-green-500', 'bg-red-500');
+                syncStatus.classList.add('bg-yellow-400');
+                syncText.textContent = 'Sincronizando...';
+                syncIndicator.classList.remove('opacity-0');
+                
+                setTimeout(() => {
+                    syncStatus.classList.remove('bg-yellow-400');
+                    syncStatus.classList.add('bg-green-500');
+                    syncText.textContent = 'Sincronizado';
+                    
+                    setTimeout(() => {
+                        syncIndicator.classList.add('opacity-0');
+                    }, 2000);
+                }, 1000);
+            });
+        }
+        
+        // Check if user is already logged in
+        function checkLoginStatus() {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                try {
+                    const user = JSON.parse(savedUser);
+                    loginUser(user.username, user.isAdmin);
+                } catch (e) {
+                    console.error('Erro ao analisar usuário salvo:', e);
+                    logoutUser();
+                }
             }
         }
         
+        // Atualizar função de verificação de login
+        function attemptLogin(username, password) {
+            return new Promise((resolve, reject) => {
+                firebase.database().ref('users/' + username).once('value')
+                    .then((snapshot) => {
+                        if (snapshot.exists()) {
+                            const userData = snapshot.val();
+                            if (userData.password === password) {
+                                resolve({
+                                    username: userData.username,
+                                    isAdmin: userData.isAdmin
+                                });
+                            } else {
+                                reject(new Error('Senha incorreta'));
+                            }
+                        } else {
+                            reject(new Error('Usuário não encontrado'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao verificar login:', error);
+                        reject(error);
+                    });
+            });
+        }
+        
+        // Login user
+        function loginUser(username, admin) {
+            currentUser = username;
+            isAdmin = admin;
+            
+            // Update UI
+            currentUserSpan.textContent = username;
+            if (admin) {
+                adminBadge.classList.remove('hidden');
+            } else {
+                adminBadge.classList.add('hidden');
+            }
+            
+            // Hide login screen
+            loginScreen.classList.add('hidden');
+            
+            // Update UI based on permissions
+            updateUIBasedOnPermissions();
+            
+            // Save login state
+            localStorage.setItem('currentUser', JSON.stringify({ username, isAdmin: admin }));
+        }
+        
+        // Logout user
+        function logoutUser() {
+            currentUser = null;
+            isAdmin = false;
+            
+            // Show login screen
+            loginScreen.classList.remove('hidden');
+            
+            // Clear login state
+            localStorage.removeItem('currentUser');
+        }
+        
+        // Update UI based on user permissions
+        function updateUIBasedOnPermissions() {
+            if (!isAdmin) {
+                // Hide or disable admin-only features
+                tabRegister.classList.add('hidden');
+                
+                // Remove edit and toggle buttons from search results
+                document.querySelectorAll('.edit-player, .toggle-status').forEach(button => {
+                    button.classList.add('hidden');
+                });
+                
+                // Hide edit button in player info display
+                const editDisplayedButton = document.getElementById('edit-displayed-player');
+                if (editDisplayedButton) {
+                    editDisplayedButton.classList.add('hidden');
+                }
+            } else {
+                // Show admin features
+                tabRegister.classList.remove('hidden');
+            }
+        }
+        // Start the camera with the facing mode (environment = rear camera on mobile)
+        async function startCamera() {
+            try {
+                const constraints = {
+                    video: { facingMode: 'environment' }
+                };
+                
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = videoStream;
+                
+                // Wait for video to be ready
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => {
+                        resolve();
+                    };
+                });
+                
+                await video.play();
+                
+                // Set canvas dimensions to match video
+                canvasElement.width = video.videoWidth;
+                canvasElement.height = video.videoHeight;
+                
+                // Start scanning
+                isScanning = true;
+                startQRScanning();
+                
+                // Update UI
+                videoContainer.classList.remove('hidden');
+                startButton.classList.add('hidden');
+                stopButton.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error starting camera:', error);
+                showNotification('Erro ao acessar a câmera. Verifique as permissões.');
+            }
+        }
+        
+        // Stop camera and scanning
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            
+            isScanning = false;
+            if (scanInterval) {
+                clearInterval(scanInterval);
+                scanInterval = null;
+            }
+            
+            video.srcObject = null;
+            
+            // Update UI
+            videoContainer.classList.add('hidden');
+            startButton.classList.remove('hidden');
+            stopButton.classList.add('hidden');
+        }
+        
+        // Scan for QR codes
+        function startQRScanning() {
+            if (!isScanning) return;
+            
+            scanInterval = setInterval(() => {
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    // Draw video frame to canvas
+                    canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                    const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                    
+                    try {
+                        // Use ZXing for QR code detection
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: "dontInvert",
+                        });
+                        
+                        if (code) {
+                            console.log('QR code detected:', code.data);
+                            
+                            // Vibrate if supported
+                            if (navigator.vibrate) {
+                                navigator.vibrate(200);
+                            }
+                            
+                            // Fill input with QR code data
+                            playerIdInput.value = code.data;
+                            
+                            // Check player automatically
+                            checkPlayer();
+                            
+                            // Stop camera after successful scan
+                            stopCamera();
+                        }
+                    } catch (error) {
+                        console.error('Error scanning QR code:', error);
+                    }
+                }
+            }, 100);
+        }
         // Show notification
         function showNotification(message, duration = 3000) {
             notificationMessage.textContent = message;
@@ -268,7 +669,8 @@
                 tabSearch.classList.add('border-primary', 'text-primary');
             }
         }
-                  // Check player by ID
+        
+        // Check player by ID
         function checkPlayer() {
             const id = playerIdInput.value.trim();
             
@@ -287,16 +689,20 @@
                 playerInfo.innerHTML = `
                     <div class="text-center py-4">
                         <p class="mb-3">Jogador não encontrado. Deseja cadastrar?</p>
-                        <button id="register-new-player" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
+                        <button id="register-new-player" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded ${isAdmin ? '' : 'hidden'}">
                             Cadastrar Novo Jogador
                         </button>
+                        <p class="${isAdmin ? 'hidden' : ''}">Somente administradores podem cadastrar novos jogadores.</p>
                     </div>
                 `;
                 
-                document.getElementById('register-new-player').addEventListener('click', () => {
-                    document.getElementById('playerId').value = id;
-                    switchTab('register');
-                });
+                const registerNewButton = document.getElementById('register-new-player');
+                if (registerNewButton) {
+                    registerNewButton.addEventListener('click', () => {
+                        document.getElementById('playerId').value = id;
+                        switchTab('register');
+                    });
+                }
                 
                 playerInfoDisplay.classList.remove('hidden');
             }
@@ -327,7 +733,7 @@
                     </div>
                 </div>
                 <div class="mt-4 flex justify-end">
-                    <button id="edit-displayed-player" class="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm">
+                    <button id="edit-displayed-player" class="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm ${isAdmin ? '' : 'hidden'}">
                         Editar Jogador
                     </button>
                 </div>
@@ -346,7 +752,7 @@
             playerInfoDisplay.classList.remove('hidden');
         }
         
-        // Register a new player
+        // Register a new player with Firebase
         function registerPlayer(event) {
             event.preventDefault();
             
@@ -361,26 +767,26 @@
                 return;
             }
             
+            // Create player object
+            const player = { id, name, age, team, status };
+            
             // Check if player already exists
             const existingPlayerIndex = playersDB.findIndex(p => p.id === id);
+            const existingPlayer = existingPlayerIndex !== -1;
             
-            if (existingPlayerIndex !== -1) {
-                // Update existing player
-                playersDB[existingPlayerIndex] = { id, name, age, team, status };
-                showNotification(`Jogador "${name}" atualizado com sucesso!`);
-            } else {
-                // Add new player
-                playersDB.push({ id, name, age, team, status });
-                showNotification(`Jogador "${name}" cadastrado com sucesso!`);
-            }
-            
-            // Save to local storage
-            saveData();
-            
-            // Reset form
-            registerForm.reset();
+            // Save to Firebase
+            firebase.database().ref('players/' + id).set(player)
+                .then(() => {
+                    showNotification(`Jogador "${name}" ${existingPlayer ? 'atualizado' : 'cadastrado'} com sucesso!`);
+                    // Reset form
+                    registerForm.reset();
+                })
+                .catch(error => {
+                    console.error('Erro ao salvar jogador:', error);
+                    showNotification('Erro ao salvar jogador. Tente novamente.');
+                });
         }
-                  // Search players by name
+        // Search players by name
         function searchPlayers() {
             const term = searchTerm.value.toLowerCase().trim();
             
@@ -424,13 +830,13 @@
                                 </div>
                             </div>
                             <div class="mt-3 flex justify-end space-x-2">
-                                <button class="edit-player bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded text-sm" 
+                                <button class="edit-player bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded text-sm ${isAdmin ? '' : 'hidden'}" 
                                     data-id="${player.id}">
                                     Editar
                                 </button>
                                 <button class="toggle-status 
                                     ${player.status === 'liberado' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} 
-                                    text-white py-1 px-2 rounded text-sm" 
+                                    text-white py-1 px-2 rounded text-sm ${isAdmin ? '' : 'hidden'}" 
                                     data-id="${player.id}">
                                     ${player.status === 'liberado' ? 'Bloquear' : 'Liberar'}
                                 </button>
@@ -478,35 +884,72 @@
             }
         }
         
-        // Toggle player status (liberado/bloqueado)
+        // Toggle player status with Firebase
         function togglePlayerStatus(id) {
             const playerIndex = playersDB.findIndex(p => p.id === id);
             
             if (playerIndex !== -1) {
+                // Get current player
+                const player = playersDB[playerIndex];
+                
                 // Toggle status
-                const newStatus = playersDB[playerIndex].status === 'liberado' ? 'bloqueado' : 'liberado';
-                playersDB[playerIndex].status = newStatus;
+                const newStatus = player.status === 'liberado' ? 'bloqueado' : 'liberado';
                 
-                // Save to local storage
-                saveData();
-                
-                // Show notification
-                const statusText = newStatus === 'liberado' ? 'liberado' : 'bloqueado';
-                showNotification(`Status do jogador alterado para: ${statusText}`);
-                
-                // Refresh search results
-                searchPlayers();
+                // Update in Firebase
+                firebase.database().ref('players/' + id + '/status').set(newStatus)
+                    .then(() => {
+                        // Show notification
+                        const statusText = newStatus === 'liberado' ? 'liberado' : 'bloqueado';
+                        showNotification(`Status do jogador alterado para: ${statusText}`);
+                        
+                        // Local UI will be updated by the Firebase listener
+                    })
+                    .catch(error => {
+                        console.error('Erro ao atualizar status:', error);
+                        showNotification('Erro ao atualizar status. Tente novamente.');
+                    });
             }
         }
         
         // Initialize app
         function init() {
             initializeDB();
+            initializeFirebaseAuth();
+            monitorConnection();
+            
+            // Check login status on startup
+            checkLoginStatus();
+            
+            // Login form submission
+            loginForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                // Check credentials using Firebase
+                attemptLogin(username, password)
+                    .then(user => {
+                        loginUser(user.username, user.isAdmin);
+                        loginError.classList.add('hidden');
+                    })
+                    .catch(error => {
+                        console.error('Erro de login:', error);
+                        loginError.classList.remove('hidden');
+                    });
+            });
+            
+            // Logout button
+            logoutButton.addEventListener('click', logoutUser);
             
             // Tab switching
             tabIdInput.addEventListener('click', () => switchTab('id-input'));
             tabRegister.addEventListener('click', () => switchTab('register'));
             tabSearch.addEventListener('click', () => switchTab('search'));
+            
+            // Camera controls
+            startButton.addEventListener('click', startCamera);
+            stopButton.addEventListener('click', stopCamera);
             
             // Check player
             checkPlayerButton.addEventListener('click', checkPlayer);
