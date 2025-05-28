@@ -148,20 +148,16 @@
                 <p class="mb-4">Escaneie o QR Code ou digite o ID do jogador para verificar seu status.</p>
                 
                 <div class="flex flex-col items-center">
-                    <!-- Container da câmera -->
-                    <div id="video-container" class="relative mb-4 w-full max-w-md hidden">
-                        <video id="video" class="rounded-lg w-full shadow-lg" playsinline></video>
-                        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 border-2 border-primary rounded w-2/3 h-2/3 pointer-events-none"></div>
-                    </div>
-                    
-                    <!-- Botões da câmera -->
-                    <div class="mb-4 flex space-x-2">
-                        <button id="startButton" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
-                            Escanear QR Code
+                    <!-- Botões para escanear QR Code -->
+                    <div class="mb-4 flex flex-col space-y-2 w-full max-w-md">
+                        <button id="nativeScanButton" class="bg-primary hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded">
+                            Usar Scanner do Dispositivo
                         </button>
-                        <button id="stopButton" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded hidden">
-                            Parar Câmera
-                        </button>
+                        
+                        <label for="qrImageInput" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded text-center cursor-pointer">
+                            Selecionar Imagem de QR Code
+                        </label>
+                        <input type="file" id="qrImageInput" accept="image/*" class="hidden">
                     </div>
                     
                     <!-- Campo de entrada manual -->
@@ -290,6 +286,8 @@
         const notification = document.getElementById('notification');
         const notificationMessage = document.getElementById('notification-message');
         const closeNotification = document.getElementById('close-notification');
+        const nativeScanButton = document.getElementById('nativeScanButton');
+        const qrImageInput = document.getElementById('qrImageInput');
         
         // Login screen elements
         const loginScreen = document.getElementById('login-screen');
@@ -307,23 +305,10 @@
         const registerContainer = document.getElementById('register-container');
         const searchContainer = document.getElementById('search-container');
         
-        // Camera elements
-        const video = document.getElementById('video');
-        const videoContainer = document.getElementById('video-container');
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
-        
         // Sync indicator elements
         const syncIndicator = document.getElementById('sync-indicator');
         const syncStatus = document.getElementById('sync-status');
         const syncText = document.getElementById('sync-text');
-        
-        // Camera variables
-        let videoStream = null;
-        let isScanning = false;
-        let scanInterval = null;
-        let canvasElement = document.createElement('canvas');
-        let canvas = canvasElement.getContext('2d');
         // Initialize database from Firebase
         function initializeDB() {
             const dbRef = firebase.database().ref('players');
@@ -538,208 +523,46 @@
                 tabRegister.classList.remove('hidden');
             }
         }
-        // Start the camera with improved permission handling
-        async function startCamera() {
-            try {
-                // Try to check camera permission status (may not work in all browsers)
-                let permissionStatus;
-                try {
-                    permissionStatus = await navigator.permissions.query({ name: 'camera' });
-                } catch (error) {
-                    console.log('Permission query not supported, proceeding anyway');
-                    permissionStatus = { state: 'prompt' }; // Assume we need to prompt
-                }
-                
-                // If permission is already denied, show instructions immediately
-                if (permissionStatus.state === 'denied') {
-                    showPermissionInstructions();
-                    return;
-                }
-                
-                // Request camera access
-                const constraints = {
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                };
-                
-                try {
-                    videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch (error) {
-                    console.error('Error accessing camera:', error);
-                    
-                    // Handle specific permission errors
-                    if (error.name === 'NotAllowedError' || 
-                        error.name === 'PermissionDeniedError' || 
-                        error.message.includes('Permission denied')) {
-                        showPermissionInstructions();
-                        return;
-                    }
-                    
-                    // For other errors
-                    throw error;
-                }
-                
-                // Set video source and start playing
-                video.srcObject = videoStream;
-                video.setAttribute('playsinline', true); // Important for iOS
-                
-                // Wait for video to be ready
-                await new Promise(resolve => {
-                    video.onloadedmetadata = () => {
-                        resolve();
-                    };
-                });
-                
-                await video.play();
-                
-                // Set canvas dimensions to match video
-                canvasElement.width = video.videoWidth;
-                canvasElement.height = video.videoHeight;
-                
-                // Start scanning
-                isScanning = true;
-                startQRScanning();
-                
-                // Update UI
-                videoContainer.classList.remove('hidden');
-                startButton.classList.add('hidden');
-                stopButton.classList.remove('hidden');
-            } catch (error) {
-                console.error('Error starting camera:', error);
-                showNotification('Erro ao acessar a câmera. Tente novamente.');
-            }
-        }
-        
-        // Show permission instructions based on device type
-        function showPermissionInstructions() {
-            // Create a modal for permission instructions
-            const instructionsHTML = `
-                <div class="p-4 bg-yellow-50 dark:bg-yellow-900 rounded-lg mb-4">
-                    <h3 class="font-bold text-lg mb-2">Permissão de câmera necessária</h3>
-                    <p class="mb-3">O acesso à câmera foi negado ou não está disponível.</p>
-                    
-                    ${isAndroid ? `
-                    <div class="mb-2"><strong>Para Android:</strong></div>
-                    <ol class="list-decimal pl-5 mb-3 text-sm">
-                        <li>Vá para Configurações > Aplicativos</li>
-                        <li>Encontre este aplicativo ou o navegador que está usando</li>
-                        <li>Toque em "Permissões" > "Câmera"</li>
-                        <li>Selecione "Permitir"</li>
-                    </ol>
-                    ` : ''}
-                    
-                    ${isIOS ? `
-                    <div class="mb-2"><strong>Para iOS:</strong></div>
-                    <ol class="list-decimal pl-5 mb-3 text-sm">
-                        <li>Vá para Configurações > Safari</li>
-                        <li>Role para baixo até "Configurações para sites"</li>
-                        <li>Toque em "Acesso à câmera e microfone"</li>
-                        <li>Ative "Câmera" para este site</li>
-                    </ol>
-                    ` : ''}
-                    
-                    ${!isAndroid && !isIOS ? `
-                    <div class="mb-2"><strong>Para permitir a câmera:</strong></div>
-                    <ol class="list-decimal pl-5 mb-3 text-sm">
-                        <li>Verifique o ícone da câmera na barra de endereço do navegador</li>
-                        <li>Clique nele e selecione "Permitir"</li>
-                        <li>Recarregue a página após conceder permissão</li>
-                    </ol>
-                    ` : ''}
-                    
-                    <div class="mt-3">
-                        <button id="dismiss-instructions" class="bg-primary text-white py-2 px-4 rounded">
-                            Entendi
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            // Create modal container if it doesn't exist
-            let container = document.getElementById('permission-instructions');
-            if (!container) {
-                container = document.createElement('div');
-                container.id = 'permission-instructions';
-                container.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
-                document.body.appendChild(container);
-            }
-            
-            // Set content and show modal
-            container.innerHTML = instructionsHTML;
-            
-            // Add event listener to dismiss button
-            setTimeout(() => {
-                document.getElementById('dismiss-instructions').addEventListener('click', () => {
-                    document.getElementById('permission-instructions').remove();
-                });
-            }, 0);
-            
-            // Show notification
-            showNotification('Erro ao acessar a câmera. Verifique as permissões.');
-        }
-        
-        // Stop camera and scanning
-        function stopCamera() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-                videoStream = null;
-            }
-            
-            isScanning = false;
-            if (scanInterval) {
-                clearInterval(scanInterval);
-                scanInterval = null;
-            }
-            
-            video.srcObject = null;
-            
-            // Update UI
-            videoContainer.classList.add('hidden');
-            startButton.classList.remove('hidden');
-            stopButton.classList.add('hidden');
-        }
-        
-        // Scan for QR codes
-        function startQRScanning() {
-            if (!isScanning) return;
-            
-            scanInterval = setInterval(() => {
-                if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                    // Draw video frame to canvas
-                    canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-                    const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-                    
-                    try {
-                        // Use jsQR for QR code detection
-                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                            inversionAttempts: "dontInvert",
-                        });
+        // Process QR code from selected image
+        function processQRCodeFromImage(file) {
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Create canvas for processing the image
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0, img.width, img.height);
                         
-                        if (code) {
-                            console.log('QR code detected:', code.data);
+                        // Get image data
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        
+                        try {
+                            // Decode QR code from image
+                            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                                inversionAttempts: "dontInvert",
+                            });
                             
-                            // Vibrate if supported
-                            if (navigator.vibrate) {
-                                navigator.vibrate(200);
+                            if (code) {
+                                // QR code found!
+                                playerIdInput.value = code.data;
+                                checkPlayer();
+                                showNotification('QR Code lido com sucesso!');
+                            } else {
+                                showNotification('Nenhum QR Code encontrado na imagem.');
                             }
-                            
-                            // Fill input with QR code data
-                            playerIdInput.value = code.data;
-                            
-                            // Check player automatically
-                            checkPlayer();
-                            
-                            // Stop camera after successful scan
-                            stopCamera();
+                        } catch (error) {
+                            console.error('Erro ao ler QR code:', error);
+                            showNotification('Erro ao processar a imagem. Tente outra ou digite o código manualmente.');
                         }
-                    } catch (error) {
-                        console.error('Error scanning QR code:', error);
-                    }
-                }
-            }, 100);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
         }
         // Show notification
         function showNotification(message, duration = 3000) {
@@ -1063,9 +886,24 @@
             tabRegister.addEventListener('click', () => switchTab('register'));
             tabSearch.addEventListener('click', () => switchTab('search'));
             
-            // Camera controls
-            startButton.addEventListener('click', startCamera);
-            stopButton.addEventListener('click', stopCamera);
+            // QR Code scanning
+            nativeScanButton.addEventListener('click', () => {
+                // For iOS, show instruction
+                if (isIOS) {
+                    showNotification('Use a câmera padrão do iPhone para escanear o QR Code e digite o código aqui.');
+                } else {
+                    // Try to open a QR scanner app
+                    // Many Android devices will redirect to default scanner
+                    window.open('intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end', '_blank');
+                    showNotification('Abra seu aplicativo de scanner QR e digite o código aqui.');
+                }
+            });
+            
+            // Process selected image for QR code
+            qrImageInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                processQRCodeFromImage(file);
+            });
             
             // Check player
             checkPlayerButton.addEventListener('click', checkPlayer);
